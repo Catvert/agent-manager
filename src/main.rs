@@ -59,7 +59,6 @@ impl App {
                 "Start an existing workflow",
                 "Merge an existing worktree",
                 "Delete a worktree",
-                "Open lazygit on a worktree",
                 "Quit",
             ]
             .into_iter()
@@ -77,7 +76,6 @@ impl App {
                 1 => self.start_existing_workflow()?,
                 2 => self.merge_existing_worktree()?,
                 3 => self.delete_worktree()?,
-                4 => self.view_worktree()?,
                 _ => {
                     println!("{}", style("See you!").green());
                     return Ok(());
@@ -402,6 +400,14 @@ impl App {
             .ok_or_else(|| anyhow!("Worktree has no associated branch"))?;
 
         if Confirm::with_theme(&self.theme)
+            .with_prompt("Open lazygit to review or commit?")
+            .default(true)
+            .interact()?
+        {
+            self.open_lazygit(&worktree.path)?;
+        }
+
+        if Confirm::with_theme(&self.theme)
             .with_prompt(format!(
                 "Merge {} into {}?",
                 branch, self.cfg.config.merge_target
@@ -485,22 +491,6 @@ impl App {
         }
 
         Ok(())
-    }
-
-    fn view_worktree(&mut self) -> Result<()> {
-        let worktrees = self.repo.list_worktrees()?;
-        if worktrees.is_empty() {
-            println!("{}", style("No worktree detected.").yellow());
-            return Ok(());
-        }
-
-        let (selection, selected) = self.pick_worktree(&worktrees, "lazygit> ")?;
-        let Some(idx) = selection else {
-            println!("{}", style("No selection, aborting.").yellow());
-            return Ok(());
-        };
-        let worktree = &selected[idx];
-        self.open_lazygit(&worktree.path)
     }
 
     fn open_lazygit(&self, worktree: &Path) -> Result<()> {
