@@ -84,15 +84,10 @@ fn ensure_default_template(templates_dir: &Path) -> Result<()> {
     if !default_template.exists() {
         let mut file = File::create(&default_template)?;
         file.write_all(
-            br#"# Feature goal
+            br#"
+- branch: ${branch}
 
-- Summarize the work at a high level.
-- List the main constraints.
-
-# Notes for the agent
-
-- Stay concise.
-- Suggest useful tests.
+${feature}
 
 "#,
         )?;
