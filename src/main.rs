@@ -243,13 +243,23 @@ impl App {
             .with_context(|| format!("Unable to read template {}", template.display()))?;
 
         let mut cmd = Command::new(&self.cfg.config.agent_command);
+        let mut uses_template_placeholder = false;
+
         for arg in &self.cfg.config.agent_args {
+            if arg.contains("{template}") || arg.contains("{template_content}") {
+                uses_template_placeholder = true;
+            }
+
             cmd.arg(
                 arg.replace("{template}", &template_str)
                     .replace("{worktree}", &worktree_str)
                     .replace("{branch}", branch)
                     .replace("{template_content}", &template_content),
             );
+        }
+
+        if !uses_template_placeholder {
+            cmd.arg(&template_content);
         }
 
         let status = cmd
