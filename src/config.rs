@@ -21,10 +21,10 @@ impl Default for Config {
     fn default() -> Self {
         Self {
             agent_command: "codex".to_string(),
-            agent_args: Vec::new(),
-            merge_target: "master".to_string(),
+            agent_args: vec!["{worktree}".to_string(), "{template_content}".to_string()],
+            merge_target: "main".to_string(),
             template_editor: "vim".to_string(),
-            agent_display_name: "codex".to_string(),
+            agent_display_name: "Codex".to_string(),
             worktree_base_override: None,
         }
     }
@@ -38,13 +38,10 @@ pub struct ConfigState {
 impl ConfigState {
     pub fn load() -> Result<Self> {
         let project_dirs = ProjectDirs::from("dev", "AgentManager", "AgentManager")
-            .context("Impossible de localiser le dossier de configuration utilisateur")?;
+            .context("Unable to locate the user configuration directory")?;
         let config_dir = project_dirs.config_dir();
         fs::create_dir_all(config_dir).with_context(|| {
-            format!(
-                "Impossible de créer le dossier de configuration {:?}",
-                config_dir
-            )
+            format!("Unable to create configuration directory {:?}", config_dir)
         })?;
 
         let config_file = config_dir.join("config.toml");
@@ -54,7 +51,7 @@ impl ConfigState {
             if buf.trim().is_empty() {
                 Config::default()
             } else {
-                toml::from_str(&buf).context("Fichier de configuration invalide")?
+                toml::from_str(&buf).context("Configuration file is invalid")?
             }
         } else {
             let config = Config::default();
@@ -63,12 +60,8 @@ impl ConfigState {
         };
 
         let templates_dir = config_dir.join("templates");
-        fs::create_dir_all(&templates_dir).with_context(|| {
-            format!(
-                "Impossible de créer le dossier des templates {:?}",
-                templates_dir
-            )
-        })?;
+        fs::create_dir_all(&templates_dir)
+            .with_context(|| format!("Unable to create templates directory {:?}", templates_dir))?;
 
         ensure_default_template(&templates_dir)?;
 
@@ -91,15 +84,15 @@ fn ensure_default_template(templates_dir: &Path) -> Result<()> {
     if !default_template.exists() {
         let mut file = File::create(&default_template)?;
         file.write_all(
-            br#"# Objectif de la feature
+            br#"# Feature goal
 
-- Decrire en quelques lignes le besoin.
-- Lister les contraintes principales.
+- Summarize the work at a high level.
+- List the main constraints.
 
-# Notes pour l'agent
+# Notes for the agent
 
-- Rester concis.
-- Proposer des tests pertinents.
+- Stay concise.
+- Suggest useful tests.
 
 "#,
         )?;

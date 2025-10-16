@@ -13,7 +13,7 @@ pub fn skim_select(items: &[String], prompt: &str) -> Result<Option<usize>> {
         .height(Some("50%"))
         .prompt(Some(prompt))
         .build()
-        .map_err(|err| anyhow!("Configuration skim invalide: {}", err))?;
+        .map_err(|err| anyhow!("Invalid skim configuration: {}", err))?;
 
     let display = items
         .iter()

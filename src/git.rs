@@ -25,12 +25,12 @@ impl GitRepo {
             .args(["rev-parse", "--show-toplevel"])
             .output()
             .context(
-                "Impossible de trouver le repository git courant (git rev-parse --show-toplevel)",
+                "Unable to resolve the current git repository (git rev-parse --show-toplevel)",
             )?;
 
         if !output.status.success() {
             return Err(anyhow!(
-                "git rev-parse --show-toplevel a echoue: {}",
+                "git rev-parse --show-toplevel failed: {}",
                 String::from_utf8_lossy(&output.stderr)
             ));
         }
@@ -40,7 +40,7 @@ impl GitRepo {
         let root = PathBuf::from(path);
         let name = root
             .file_name()
-            .ok_or_else(|| anyhow!("Nom du repository introuvable"))?
+            .ok_or_else(|| anyhow!("Repository name could not be determined"))?
             .to_string_lossy()
             .to_string();
 
@@ -54,9 +54,10 @@ impl GitRepo {
                 .replace("{repo_root}", &self.root.to_string_lossy());
             Ok(PathBuf::from(rendered))
         } else {
-            let parent = self.root.parent().ok_or_else(|| {
-                anyhow!("Impossible de determiner le dossier parent du repository")
-            })?;
+            let parent = self
+                .root
+                .parent()
+                .ok_or_else(|| anyhow!("Unable to resolve the repository parent directory"))?;
             Ok(parent.join(format!("{}-worktree-agents", self.name)))
         }
     }
@@ -65,7 +66,7 @@ impl GitRepo {
         let output = run_git(&self.root, ["worktree", "list", "--porcelain"])?;
         if !output.status.success() {
             return Err(anyhow!(
-                "git worktree list --porcelain a echoue: {}",
+                "git worktree list --porcelain failed: {}",
                 String::from_utf8_lossy(&output.stderr)
             ));
         }
@@ -125,7 +126,7 @@ impl GitRepo {
             .status()
             .with_context(|| {
                 format!(
-                    "Echec de git worktree add pour {} depuis {}",
+                    "Failed to run git worktree add for {} from {}",
                     target_dir.display(),
                     base_branch
                 )
@@ -133,7 +134,7 @@ impl GitRepo {
 
         if !status.success() {
             return Err(anyhow!(
-                "git worktree add a retourne un statut non nul pour la branche {}",
+                "git worktree add returned a non zero status for branch {}",
                 branch_name
             ));
         }
@@ -149,12 +150,12 @@ impl GitRepo {
         }
         command.arg(target_dir);
 
-        let status = command
-            .status()
-            .with_context(|| format!("Echec de git worktree remove {}", target_dir.display()))?;
+        let status = command.status().with_context(|| {
+            format!("Failed to run git worktree remove {}", target_dir.display())
+        })?;
         if !status.success() {
             return Err(anyhow!(
-                "git worktree remove a echoue pour {}",
+                "git worktree remove failed for {}",
                 target_dir.display()
             ));
         }
@@ -167,9 +168,9 @@ impl GitRepo {
             .current_dir(&self.root)
             .args(["branch", flag, branch])
             .status()
-            .context("Echec de git branch -d")?;
+            .context("Failed to run git branch -d")?;
         if !status.success() {
-            return Err(anyhow!("Suppression de la branche {} impossible", branch));
+            return Err(anyhow!("Unable to delete branch {}", branch));
         }
         Ok(())
     }
@@ -184,16 +185,11 @@ impl GitRepo {
             .current_dir(&self.root)
             .args(["merge", "--no-ff", source_branch])
             .status()
-            .with_context(|| {
-                format!(
-                    "Echec de la fusion de {} dans {}",
-                    source_branch, target_branch
-                )
-            })?;
+            .with_context(|| format!("Failed to merge {} into {}", source_branch, target_branch))?;
 
         if !status.success() {
             return Err(anyhow!(
-                "git merge a echoue lors de la fusion de {} dans {}",
+                "git merge failed while merging {} into {}",
                 source_branch,
                 target_branch
             ));
@@ -227,12 +223,9 @@ impl GitRepo {
             .current_dir(&self.root)
             .args(["checkout", branch])
             .status()
-            .with_context(|| format!("Echec de git checkout {}", branch))?;
+            .with_context(|| format!("Failed to run git checkout {}", branch))?;
         if !status.success() {
-            return Err(anyhow!(
-                "Impossible de se positionner sur la branche {}",
-                branch
-            ));
+            return Err(anyhow!("Unable to checkout branch {}", branch));
         }
         Ok(())
     }
@@ -246,7 +239,7 @@ where
         .current_dir(root)
         .args(args)
         .output()
-        .with_context(|| format!("Echec d'execution de git dans {}", root.display()))?;
+        .with_context(|| format!("Failed to execute git in {}", root.display()))?;
 
     Ok(output)
 }

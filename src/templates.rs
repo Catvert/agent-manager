@@ -13,7 +13,7 @@ pub const TEMPLATE_FILENAME: &str = ".agent-template";
 pub fn available_templates(cfg: &ConfigState) -> Result<Vec<PathBuf>> {
     let mut entries = Vec::new();
     for entry in fs::read_dir(&cfg.templates_dir)
-        .with_context(|| format!("Lecture impossible du dossier {:?}", cfg.templates_dir))?
+        .with_context(|| format!("Unable to read templates directory {:?}", cfg.templates_dir))?
     {
         let entry = entry?;
         if entry.file_type()?.is_file() {
@@ -29,7 +29,7 @@ pub fn choose_template(cfg: &ConfigState) -> Result<Option<PathBuf>> {
     let templates = available_templates(cfg)?;
     if templates.is_empty() {
         println!(
-            "{} Aucun template detecte dans {}",
+            "{} No template found in {}",
             style("!").yellow(),
             cfg.templates_dir.display()
         );
@@ -58,7 +58,7 @@ pub fn copy_template_to_worktree(template: &Path, worktree: &Path) -> Result<Pat
     let destination = worktree.join(TEMPLATE_FILENAME);
     fs::copy(template, &destination).with_context(|| {
         format!(
-            "Impossible de copier le template {} vers {}",
+            "Failed to copy template {} to {}",
             template.display(),
             destination.display()
         )
@@ -70,12 +70,9 @@ pub fn edit_template(editor: &str, template_path: &Path) -> Result<()> {
     let status = Command::new(editor)
         .arg(template_path)
         .status()
-        .with_context(|| format!("Impossible de lancer l'editeur {}", editor))?;
+        .with_context(|| format!("Failed to launch editor {}", editor))?;
     if !status.success() {
-        return Err(anyhow!(
-            "L'editeur {} s'est termine avec un code non nul",
-            editor
-        ));
+        return Err(anyhow!("Editor {} exited with a non zero status", editor));
     }
     Ok(())
 }

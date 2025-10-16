@@ -15,7 +15,7 @@ use git::{GitRepo, Worktree};
 
 fn main() {
     if let Err(error) = try_main() {
-        eprintln!("{} {}", style("Erreur:").red(), error);
+        eprintln!("{} {}", style("Error:").red(), error);
         std::process::exit(1);
     }
 }
@@ -50,17 +50,14 @@ impl App {
                 style(&self.cfg.config.agent_display_name).cyan(),
                 self.repo.root.display()
             );
-            println!(
-                "{}",
-                style("Choisir une action (Ctrl+C pour quitter)").dim()
-            );
+            println!("{}", style("Select an action (Ctrl+C to quit)").dim());
 
             let actions = vec![
-                "Nouvelle feature -> creer un worktree et lancer l'agent",
-                "Fusionner un worktree existant",
-                "Supprimer un worktree",
-                "Ouvrir lazygit sur un worktree",
-                "Quitter",
+                "New feature -> create worktree and launch the agent",
+                "Merge an existing worktree",
+                "Delete a worktree",
+                "Open lazygit on a worktree",
+                "Quit",
             ]
             .into_iter()
             .map(|s| s.to_string())
@@ -68,10 +65,7 @@ impl App {
 
             let selection = ui::skim_select(&actions, "Action> ")?;
             let Some(choice) = selection else {
-                println!(
-                    "{}",
-                    style("Aucune action selectionnee, fin du programme.").yellow()
-                );
+                println!("{}", style("No action selected, exiting program.").yellow());
                 return Ok(());
             };
 
@@ -81,7 +75,7 @@ impl App {
                 2 => self.delete_worktree()?,
                 3 => self.view_worktree()?,
                 _ => {
-                    println!("{}", style("A bientot!").green());
+                    println!("{}", style("See you!").green());
                     return Ok(());
                 }
             }
@@ -90,15 +84,15 @@ impl App {
 
     fn new_feature_flow(&mut self) -> Result<()> {
         let name: String = Input::with_theme(&self.theme)
-            .with_prompt("Nom de la feature")
+            .with_prompt("Feature name")
             .interact_text()?;
         if name.trim().is_empty() {
-            println!("{}", style("Nom vide, annulation.").yellow());
+            println!("{}", style("Empty name, aborting.").yellow());
             return Ok(());
         }
 
         let base_branch: String = Input::with_theme(&self.theme)
-            .with_prompt("Branche de base")
+            .with_prompt("Base branch")
             .default(self.cfg.config.merge_target.clone())
             .interact_text()?;
 
@@ -107,7 +101,7 @@ impl App {
         let worktree_base = self.repo.worktree_base(&self.cfg)?;
         std::fs::create_dir_all(&worktree_base).with_context(|| {
             format!(
-                "Impossible de creer le dossier des worktrees {}",
+                "Unable to create worktree directory {}",
                 worktree_base.display()
             )
         })?;
@@ -115,7 +109,7 @@ impl App {
 
         if worktree_dir.exists() {
             return Err(anyhow!(
-                "Le worktree cible {} existe deja",
+                "Target worktree {} already exists",
                 worktree_dir.display()
             ));
         }
@@ -124,7 +118,7 @@ impl App {
             .create_worktree(&branch_name, &worktree_dir, &base_branch)?;
 
         println!(
-            "{} Worktree cree dans {} sur la branche {}",
+            "{} Worktree created in {} on branch {}",
             style("[ok]").green(),
             worktree_dir.display(),
             branch_name
@@ -134,7 +128,7 @@ impl App {
             Some(path) => path,
             None => {
                 println!(
-                    "{} Aucun template selectionne, la creation est annulee.",
+                    "{} No template selected, aborting feature creation.",
                     style("!").yellow()
                 );
                 let _ = self.repo.remove_worktree(&worktree_dir, true);
@@ -145,13 +139,13 @@ impl App {
 
         let local_template = templates::copy_template_to_worktree(&template_path, &worktree_dir)?;
         println!(
-            "{} Template copie vers {}",
+            "{} Template copied to {}",
             style("[info]").blue(),
             local_template.display()
         );
 
         if Confirm::with_theme(&self.theme)
-            .with_prompt("Modifier le template avant de lancer l'agent ?")
+            .with_prompt("Edit the template before launching the agent?")
             .default(true)
             .interact()?
         {
@@ -161,7 +155,7 @@ impl App {
         self.run_agent(&worktree_dir, &branch_name, &local_template)?;
 
         if Confirm::with_theme(&self.theme)
-            .with_prompt("Ouvrir lazygit pour visualiser/committer ?")
+            .with_prompt("Open lazygit to review or commit?")
             .default(true)
             .interact()?
         {
@@ -170,7 +164,7 @@ impl App {
 
         if Confirm::with_theme(&self.theme)
             .with_prompt(format!(
-                "Fusionner la branche {} vers {} ?",
+                "Merge branch {} into {}?",
                 branch_name, self.cfg.config.merge_target
             ))
             .default(false)
@@ -180,10 +174,10 @@ impl App {
                 .repo
                 .merge_branch(&branch_name, &self.cfg.config.merge_target)
             {
-                println!("{} Fusion interrompue: {}", style("!").red(), err);
+                println!("{} Merge aborted: {}", style("!").red(), err);
             } else {
                 println!(
-                    "{} Fusion reussie vers {}",
+                    "{} Merge completed into {}",
                     style("[ok]").green(),
                     self.cfg.config.merge_target
                 );
@@ -191,18 +185,18 @@ impl App {
         }
 
         if Confirm::with_theme(&self.theme)
-            .with_prompt("Supprimer le worktree ?")
+            .with_prompt("Remove the worktree?")
             .default(false)
             .interact()?
         {
             if let Err(err) = self.repo.remove_worktree(&worktree_dir, false) {
                 println!(
-                    "{} Suppression impossible sans force: {}",
+                    "{} Unable to remove without force: {}",
                     style("!").yellow(),
                     err
                 );
                 if Confirm::with_theme(&self.theme)
-                    .with_prompt("Forcer la suppression ? (perte de changements non commits)")
+                    .with_prompt("Force removal? (will discard uncommitted changes)")
                     .default(false)
                     .interact()?
                 {
@@ -211,18 +205,18 @@ impl App {
             }
 
             if Confirm::with_theme(&self.theme)
-                .with_prompt("Supprimer aussi la branche locale ?")
+                .with_prompt("Delete the local branch as well?")
                 .default(false)
                 .interact()?
             {
                 if let Err(err) = self.repo.delete_branch(&branch_name, false) {
                     println!(
-                        "{} Suppression douce impossible: {}",
+                        "{} Unable to delete branch softly: {}",
                         style("!").yellow(),
                         err
                     );
                     if Confirm::with_theme(&self.theme)
-                        .with_prompt("Forcer la suppression de la branche ?")
+                        .with_prompt("Force branch deletion?")
                         .default(false)
                         .interact()?
                     {
@@ -237,20 +231,23 @@ impl App {
 
     fn run_agent(&self, worktree_dir: &Path, branch: &str, template: &Path) -> Result<()> {
         println!(
-            "{} Lancement de l'agent {} ...",
+            "{} Launching agent {} ...",
             style("[info]").blue(),
             self.cfg.config.agent_display_name
         );
 
         let template_str = template.to_string_lossy().to_string();
         let worktree_str = worktree_dir.to_string_lossy().to_string();
+        let template_content = std::fs::read_to_string(template)
+            .with_context(|| format!("Unable to read template {}", template.display()))?;
 
         let mut cmd = Command::new(&self.cfg.config.agent_command);
         for arg in &self.cfg.config.agent_args {
             cmd.arg(
                 arg.replace("{template}", &template_str)
                     .replace("{worktree}", &worktree_str)
-                    .replace("{branch}", branch),
+                    .replace("{branch}", branch)
+                    .replace("{template_content}", &template_content),
             );
         }
 
@@ -259,22 +256,15 @@ impl App {
             .env("AGENT_TEMPLATE_PATH", &template_str)
             .env("AGENT_WORKTREE_PATH", &worktree_str)
             .env("AGENT_BRANCH_NAME", branch)
+            .env("AGENT_TEMPLATE_CONTENT", &template_content)
             .stdin(Stdio::inherit())
             .stdout(Stdio::inherit())
             .stderr(Stdio::inherit())
             .status()
-            .with_context(|| {
-                format!(
-                    "Echec du lancement de l'agent {}",
-                    self.cfg.config.agent_command
-                )
-            })?;
+            .with_context(|| format!("Failed to launch agent {}", self.cfg.config.agent_command))?;
 
         if !status.success() {
-            return Err(anyhow!(
-                "L'agent s'est termine avec un code non nul ({})",
-                status
-            ));
+            return Err(anyhow!("Agent exited with a non zero status ({})", status));
         }
 
         Ok(())
@@ -283,24 +273,27 @@ impl App {
     fn merge_existing_worktree(&mut self) -> Result<()> {
         let worktrees = self.filtered_worktrees()?;
         if worktrees.is_empty() {
-            println!("{}", style("Aucun worktree agent a fusionner.").yellow());
+            println!(
+                "{}",
+                style("No agent worktree available to merge.").yellow()
+            );
             return Ok(());
         }
 
-        let (selection, selected) = self.pick_worktree(&worktrees, "Fusion> ")?;
+        let (selection, selected) = self.pick_worktree(&worktrees, "Merge> ")?;
         let Some(idx) = selection else {
-            println!("{}", style("Aucune selection, annulation.").yellow());
+            println!("{}", style("No selection, aborting.").yellow());
             return Ok(());
         };
         let worktree = &selected[idx];
         let branch = worktree
             .branch
             .as_deref()
-            .ok_or_else(|| anyhow!("Worktree sans branche associee"))?;
+            .ok_or_else(|| anyhow!("Worktree has no associated branch"))?;
 
         if Confirm::with_theme(&self.theme)
             .with_prompt(format!(
-                "Fusionner {} vers {} ?",
+                "Merge {} into {}?",
                 branch, self.cfg.config.merge_target
             ))
             .default(true)
@@ -309,7 +302,7 @@ impl App {
             self.repo
                 .merge_branch(branch, &self.cfg.config.merge_target)?;
             println!(
-                "{} Fusion de {} dans {} terminee.",
+                "{} Merge of {} into {} completed.",
                 style("[ok]").green(),
                 branch,
                 self.cfg.config.merge_target
@@ -322,34 +315,34 @@ impl App {
     fn delete_worktree(&mut self) -> Result<()> {
         let worktrees = self.filtered_worktrees()?;
         if worktrees.is_empty() {
-            println!("{}", style("Aucun worktree agent a supprimer.").yellow());
+            println!(
+                "{}",
+                style("No agent worktree available to delete.").yellow()
+            );
             return Ok(());
         }
 
-        let (selection, selected) = self.pick_worktree(&worktrees, "Supprimer> ")?;
+        let (selection, selected) = self.pick_worktree(&worktrees, "Delete> ")?;
         let Some(idx) = selection else {
-            println!("{}", style("Aucune selection, annulation.").yellow());
+            println!("{}", style("No selection, aborting.").yellow());
             return Ok(());
         };
         let worktree = &selected[idx];
         let branch = worktree.branch.clone();
 
         if Confirm::with_theme(&self.theme)
-            .with_prompt(format!(
-                "Supprimer le worktree {} ?",
-                worktree.path.display()
-            ))
+            .with_prompt(format!("Delete worktree {}?", worktree.path.display()))
             .default(false)
             .interact()?
         {
             if let Err(err) = self.repo.remove_worktree(&worktree.path, false) {
                 println!(
-                    "{} Suppression douce impossible: {}",
+                    "{} Unable to delete without force: {}",
                     style("!").yellow(),
                     err
                 );
                 if Confirm::with_theme(&self.theme)
-                    .with_prompt("Forcer la suppression ?")
+                    .with_prompt("Force deletion?")
                     .default(false)
                     .interact()?
                 {
@@ -360,18 +353,18 @@ impl App {
 
         if let Some(branch) = branch {
             if Confirm::with_theme(&self.theme)
-                .with_prompt(format!("Supprimer la branche {} ?", branch))
+                .with_prompt(format!("Delete branch {}?", branch))
                 .default(false)
                 .interact()?
             {
                 if let Err(err) = self.repo.delete_branch(&branch, false) {
                     println!(
-                        "{} Suppression douce impossible: {}",
+                        "{} Unable to delete branch without force: {}",
                         style("!").yellow(),
                         err
                     );
                     if Confirm::with_theme(&self.theme)
-                        .with_prompt("Forcer la suppression de la branche ?")
+                        .with_prompt("Force branch deletion?")
                         .default(false)
                         .interact()?
                     {
@@ -387,13 +380,13 @@ impl App {
     fn view_worktree(&mut self) -> Result<()> {
         let worktrees = self.repo.list_worktrees()?;
         if worktrees.is_empty() {
-            println!("{}", style("Aucun worktree detecte.").yellow());
+            println!("{}", style("No worktree detected.").yellow());
             return Ok(());
         }
 
         let (selection, selected) = self.pick_worktree(&worktrees, "lazygit> ")?;
         let Some(idx) = selection else {
-            println!("{}", style("Aucune selection, annulation.").yellow());
+            println!("{}", style("No selection, aborting.").yellow());
             return Ok(());
         };
         let worktree = &selected[idx];
@@ -402,7 +395,7 @@ impl App {
 
     fn open_lazygit(&self, worktree: &Path) -> Result<()> {
         println!(
-            "{} Lancement de lazygit dans {}",
+            "{} Launching lazygit in {}",
             style("[info]").blue(),
             worktree.display()
         );
@@ -412,10 +405,10 @@ impl App {
             .stdout(Stdio::inherit())
             .stderr(Stdio::inherit())
             .status()
-            .context("Impossible de lancer lazygit")?;
+            .context("Failed to launch lazygit")?;
         if !status.success() {
             return Err(anyhow!(
-                "lazygit s'est termine avec un code non nul ({})",
+                "lazygit exited with a non zero status ({})",
                 status
             ));
         }
