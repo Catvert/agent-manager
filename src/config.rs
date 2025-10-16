@@ -21,7 +21,7 @@ impl Default for Config {
     fn default() -> Self {
         Self {
             agent_command: "codex".to_string(),
-            agent_args: vec!["{worktree}".to_string(), "{template_content}".to_string()],
+            agent_args: vec!["{template_content}".to_string()],
             merge_target: "main".to_string(),
             template_editor: "vim".to_string(),
             agent_display_name: "Codex".to_string(),

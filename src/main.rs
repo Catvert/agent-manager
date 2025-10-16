@@ -137,7 +137,8 @@ impl App {
             }
         };
 
-        let local_template = templates::copy_template_to_worktree(&template_path, &worktree_dir)?;
+        let local_template =
+            templates::copy_template_to_worktree(&template_path, &worktree_dir, &self.theme)?;
         println!(
             "{} Template copied to {}",
             style("[info]").blue(),
