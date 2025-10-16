@@ -59,6 +59,7 @@ impl App {
                 "Start an existing workflow",
                 "Merge an existing worktree",
                 "Delete a worktree",
+                "Execute a command inside a worktree",
                 "Quit",
             ]
             .into_iter()
@@ -76,6 +77,7 @@ impl App {
                 1 => self.start_existing_workflow()?,
                 2 => self.merge_existing_worktree()?,
                 3 => self.delete_worktree()?,
+                4 => self.execute_command_on_worktree()?,
                 _ => {
                     println!("{}", style("See you!").green());
                     return Ok(());
@@ -85,35 +87,38 @@ impl App {
     }
 
     fn print_start_banner(&self) -> Result<()> {
-        println!(
-            "{} {} {}",
-            style("Welcome to").green().bold(),
-            style("AgentManager").green().bold(),
-            style(&self.cfg.config.agent_display_name).cyan()
-        );
-        println!(
-            "{} {}",
-            style("Repository:").dim(),
-            self.repo.root.display()
-        );
+        let mut lines = Vec::new();
+        lines.push(format!(
+            "Welcome to AgentManager, {}",
+            self.cfg.config.agent_display_name
+        ));
+        lines.push(format!("Repository: {}", self.repo.root.display()));
+        lines.push(String::new());
 
         let worktrees = self.filtered_worktrees()?;
         if worktrees.is_empty() {
-            println!(
-                "{}",
-                style("No existing workflows yet. Pick \"New feature\" to create one.").yellow()
-            );
+            lines.push("Existing workflows: none yet.".to_string());
+            lines.push("Use \"New feature\" to spin up your first workflow.".to_string());
         } else {
-            println!("{}", style("Existing workflows:").dim());
+            lines.push("Existing workflows:".to_string());
             for (idx, worktree) in worktrees.iter().enumerate() {
-                println!(
-                    "  {} {}",
-                    style(format!("{:>2}.", idx + 1)).cyan(),
-                    worktree_label(worktree)
-                );
+                lines.push(format!("{:>2}. {}", idx + 1, worktree_label(worktree)));
             }
         }
 
+        let inner_width = lines
+            .iter()
+            .map(|line| line.chars().count())
+            .max()
+            .unwrap_or(0)
+            .max(48);
+        let horizontal = format!("+{}+", "-".repeat(inner_width + 4));
+
+        println!("{}", style(&horizontal).green());
+        for line in lines {
+            println!("|  {:<width$}  |", line, width = inner_width);
+        }
+        println!("{}", style(&horizontal).green());
         println!();
         Ok(())
     }
@@ -294,6 +299,63 @@ impl App {
 
         if !status.success() {
             return Err(anyhow!("Agent exited with a non zero status ({})", status));
+        }
+
+        Ok(())
+    }
+
+    fn execute_command_on_worktree(&mut self) -> Result<()> {
+        let worktrees = self.filtered_worktrees()?;
+        if worktrees.is_empty() {
+            println!(
+                "{}",
+                style("No agent worktree available to run a command.").yellow()
+            );
+            return Ok(());
+        }
+
+        let (selection, selected) = self.pick_worktree(&worktrees, "Command> ")?;
+        let Some(idx) = selection else {
+            println!("{}", style("No selection, aborting.").yellow());
+            return Ok(());
+        };
+        let worktree = &selected[idx];
+
+        let command_input: String = Input::with_theme(&self.theme)
+            .with_prompt("Shell command to execute")
+            .interact_text()?;
+        let command = command_input.trim();
+
+        if command.is_empty() {
+            println!("{}", style("Empty command, aborting.").yellow());
+            return Ok(());
+        }
+
+        println!(
+            "{} Running `{}` in {}",
+            style("[info]").blue(),
+            command,
+            worktree.path.display()
+        );
+
+        let status = Command::new("sh")
+            .arg("-c")
+            .arg(command)
+            .current_dir(&worktree.path)
+            .stdin(Stdio::inherit())
+            .stdout(Stdio::inherit())
+            .stderr(Stdio::inherit())
+            .status()
+            .with_context(|| format!("Failed to execute `{}`", command))?;
+
+        if status.success() {
+            println!("{}", style("[ok] Command completed successfully.").green());
+        } else {
+            println!(
+                "{} Command exited with status {}.",
+                style("!").red(),
+                status
+            );
         }
 
         Ok(())
