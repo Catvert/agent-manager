@@ -205,7 +205,7 @@ impl App {
 
         if Confirm::with_theme(&self.theme)
             .with_prompt("Edit the template before launching the agent?")
-            .default(true)
+            .default(false)
             .interact()?
         {
             templates::edit_template(&self.cfg.config.template_editor, &local_template)?;

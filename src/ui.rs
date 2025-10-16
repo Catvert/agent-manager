@@ -10,7 +10,7 @@ pub fn skim_select(items: &[String], prompt: &str) -> Result<Option<usize>> {
 
     let options = SkimOptionsBuilder::default()
         .multi(false)
-        .height(Some("50%"))
+        .height(Some("30%"))
         .prompt(Some(prompt))
         .build()
         .map_err(|err| anyhow!("Invalid skim configuration: {}", err))?;
