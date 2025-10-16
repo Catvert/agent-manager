@@ -54,6 +54,7 @@ impl App {
 
             let actions = vec![
                 "New feature -> create worktree and launch the agent",
+                "Start an existing workflow",
                 "Merge an existing worktree",
                 "Delete a worktree",
                 "Open lazygit on a worktree",
@@ -71,9 +72,10 @@ impl App {
 
             match choice {
                 0 => self.new_feature_flow()?,
-                1 => self.merge_existing_worktree()?,
-                2 => self.delete_worktree()?,
-                3 => self.view_worktree()?,
+                1 => self.start_existing_workflow()?,
+                2 => self.merge_existing_worktree()?,
+                3 => self.delete_worktree()?,
+                4 => self.view_worktree()?,
                 _ => {
                     println!("{}", style("See you!").green());
                     return Ok(());
@@ -279,6 +281,45 @@ impl App {
         }
 
         Ok(())
+    }
+
+    fn start_existing_workflow(&mut self) -> Result<()> {
+        let worktrees = self.filtered_worktrees()?;
+        if worktrees.is_empty() {
+            println!(
+                "{}",
+                style("No agent worktree available to start.").yellow()
+            );
+            return Ok(());
+        }
+
+        let (selection, selected) = self.pick_worktree(&worktrees, "Start> ")?;
+        let Some(idx) = selection else {
+            println!("{}", style("No selection, aborting.").yellow());
+            return Ok(());
+        };
+        let worktree = &selected[idx];
+
+        let cached_template = worktree.path.join(templates::TEMPLATE_FILENAME);
+        if !cached_template.exists() {
+            println!(
+                "{} Cached template not found at {}, aborting.",
+                style("!").yellow(),
+                cached_template.display()
+            );
+            return Ok(());
+        }
+
+        if Confirm::with_theme(&self.theme)
+            .with_prompt("Edit the cached template before launching the agent?")
+            .default(false)
+            .interact()?
+        {
+            templates::edit_template(&self.cfg.config.template_editor, &cached_template)?;
+        }
+
+        let branch = worktree.branch.as_deref().unwrap_or("<detached>");
+        self.run_agent(&worktree.path, branch, &cached_template)
     }
 
     fn merge_existing_worktree(&mut self) -> Result<()> {
