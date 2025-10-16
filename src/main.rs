@@ -44,6 +44,7 @@ impl App {
     }
 
     fn run(&mut self) -> Result<()> {
+        self.print_start_banner()?;
         loop {
             println!(
                 "{} {} ({})",
@@ -83,6 +84,40 @@ impl App {
                 }
             }
         }
+    }
+
+    fn print_start_banner(&self) -> Result<()> {
+        println!(
+            "{} {} {}",
+            style("Welcome to").green().bold(),
+            style("AgentManager").green().bold(),
+            style(&self.cfg.config.agent_display_name).cyan()
+        );
+        println!(
+            "{} {}",
+            style("Repository:").dim(),
+            self.repo.root.display()
+        );
+
+        let worktrees = self.filtered_worktrees()?;
+        if worktrees.is_empty() {
+            println!(
+                "{}",
+                style("No existing workflows yet. Pick \"New feature\" to create one.").yellow()
+            );
+        } else {
+            println!("{}", style("Existing workflows:").dim());
+            for (idx, worktree) in worktrees.iter().enumerate() {
+                println!(
+                    "  {} {}",
+                    style(format!("{:>2}.", idx + 1)).cyan(),
+                    worktree_label(worktree)
+                );
+            }
+        }
+
+        println!();
+        Ok(())
     }
 
     fn new_feature_flow(&mut self) -> Result<()> {
