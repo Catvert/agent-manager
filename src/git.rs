@@ -162,6 +162,29 @@ impl GitRepo {
         Ok(())
     }
 
+    pub fn is_worktree_dirty(&self, worktree_path: &Path) -> Result<bool> {
+        let output = Command::new("git")
+            .current_dir(worktree_path)
+            .args(["status", "--porcelain"])
+            .output()
+            .with_context(|| {
+                format!(
+                    "Failed to check worktree status in {}",
+                    worktree_path.display()
+                )
+            })?;
+
+        if !output.status.success() {
+            return Err(anyhow!(
+                "git status --porcelain failed: {}",
+                String::from_utf8_lossy(&output.stderr)
+            ));
+        }
+
+        let status = String::from_utf8(output.stdout)?;
+        Ok(!status.trim().is_empty())
+    }
+
     pub fn delete_branch(&self, branch: &str, force: bool) -> Result<()> {
         let flag = if force { "-D" } else { "-d" };
         let status = Command::new("git")

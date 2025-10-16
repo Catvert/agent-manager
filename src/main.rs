@@ -219,6 +219,7 @@ impl App {
             self.open_lazygit(&worktree_dir)?;
         }
 
+        let mut merge_succeeded = false;
         if Confirm::with_theme(&self.theme)
             .with_prompt(format!(
                 "Merge branch {} into {}?",
@@ -238,50 +239,11 @@ impl App {
                     style("[ok]").green(),
                     self.cfg.config.merge_target
                 );
+                merge_succeeded = true;
             }
         }
 
-        if Confirm::with_theme(&self.theme)
-            .with_prompt("Remove the worktree?")
-            .default(false)
-            .interact()?
-        {
-            if let Err(err) = self.repo.remove_worktree(&worktree_dir, false) {
-                println!(
-                    "{} Unable to remove without force: {}",
-                    style("!").yellow(),
-                    err
-                );
-                if Confirm::with_theme(&self.theme)
-                    .with_prompt("Force removal? (will discard uncommitted changes)")
-                    .default(false)
-                    .interact()?
-                {
-                    self.repo.remove_worktree(&worktree_dir, true)?;
-                }
-            }
-
-            if Confirm::with_theme(&self.theme)
-                .with_prompt("Delete the local branch as well?")
-                .default(false)
-                .interact()?
-            {
-                if let Err(err) = self.repo.delete_branch(&branch_name, false) {
-                    println!(
-                        "{} Unable to delete branch softly: {}",
-                        style("!").yellow(),
-                        err
-                    );
-                    if Confirm::with_theme(&self.theme)
-                        .with_prompt("Force branch deletion?")
-                        .default(false)
-                        .interact()?
-                    {
-                        self.repo.delete_branch(&branch_name, true)?;
-                    }
-                }
-            }
-        }
+        self.cleanup_worktree(&worktree_dir, &branch_name, merge_succeeded)?;
 
         Ok(())
     }
@@ -332,6 +294,66 @@ impl App {
 
         if !status.success() {
             return Err(anyhow!("Agent exited with a non zero status ({})", status));
+        }
+
+        Ok(())
+    }
+
+    fn cleanup_worktree(
+        &mut self,
+        worktree_path: &Path,
+        branch: &str,
+        default_remove: bool,
+    ) -> Result<()> {
+        if self.repo.is_worktree_dirty(worktree_path)? {
+            println!(
+                "{} Worktree {} has uncommitted changes; skipping removal prompt.",
+                style("!").yellow(),
+                worktree_path.display()
+            );
+            return Ok(());
+        }
+
+        if Confirm::with_theme(&self.theme)
+            .with_prompt("Remove the worktree?")
+            .default(default_remove)
+            .interact()?
+        {
+            if let Err(err) = self.repo.remove_worktree(worktree_path, false) {
+                println!(
+                    "{} Unable to remove without force: {}",
+                    style("!").yellow(),
+                    err
+                );
+                if Confirm::with_theme(&self.theme)
+                    .with_prompt("Force removal? (will discard uncommitted changes)")
+                    .default(false)
+                    .interact()?
+                {
+                    self.repo.remove_worktree(worktree_path, true)?;
+                }
+            }
+
+            if Confirm::with_theme(&self.theme)
+                .with_prompt("Delete the local branch as well?")
+                .default(false)
+                .interact()?
+            {
+                if let Err(err) = self.repo.delete_branch(branch, false) {
+                    println!(
+                        "{} Unable to delete branch softly: {}",
+                        style("!").yellow(),
+                        err
+                    );
+                    if Confirm::with_theme(&self.theme)
+                        .with_prompt("Force branch deletion?")
+                        .default(false)
+                        .interact()?
+                    {
+                        self.repo.delete_branch(branch, true)?;
+                    }
+                }
+            }
         }
 
         Ok(())
@@ -423,6 +445,8 @@ impl App {
                 branch,
                 self.cfg.config.merge_target
             );
+
+            self.cleanup_worktree(&worktree.path, branch, true)?;
         }
 
         Ok(())
