@@ -86,11 +86,21 @@ impl App {
     }
 
     fn new_feature_flow(&mut self) -> Result<()> {
-        let name: String = Input::with_theme(&self.theme)
+        let branch_name_input: String = Input::with_theme(&self.theme)
+            .with_prompt("Branch name")
+            .default("agent/".to_string())
+            .interact_text()?;
+        let branch_name = branch_name_input.trim().to_string();
+        if branch_name.is_empty() {
+            println!("{}", style("Empty branch name, aborting.").yellow());
+            return Ok(());
+        }
+
+        let feature_description: String = Input::with_theme(&self.theme)
             .with_prompt("Feature name")
             .interact_text()?;
-        if name.trim().is_empty() {
-            println!("{}", style("Empty name, aborting.").yellow());
+        if feature_description.trim().is_empty() {
+            println!("{}", style("Empty feature name, aborting.").yellow());
             return Ok(());
         }
 
@@ -99,8 +109,7 @@ impl App {
             .default(self.cfg.config.merge_target.clone())
             .interact_text()?;
 
-        let slug = sanitize_name(&name);
-        let branch_name = format!("agent/{}", slug);
+        let slug = sanitize_name(&branch_name);
         let worktree_base = self.repo.worktree_base(&self.cfg)?;
         std::fs::create_dir_all(&worktree_base).with_context(|| {
             format!(
@@ -127,7 +136,7 @@ impl App {
             branch_name
         );
 
-        let template_path = match templates::choose_template(&self.cfg)? {
+        let template_path = match templates::choose_template(&self.cfg, &self.repo.root)? {
             Some(path) => path,
             None => {
                 println!(
@@ -141,7 +150,10 @@ impl App {
         };
 
         let mut automatic_variables = HashMap::new();
-        automatic_variables.insert("feature".to_string(), name.trim().to_string());
+        automatic_variables.insert(
+            "feature".to_string(),
+            feature_description.trim().to_string(),
+        );
         automatic_variables.insert("branch".to_string(), branch_name.clone());
 
         let local_template = templates::copy_template_to_worktree(
@@ -318,6 +330,8 @@ impl App {
             );
             return Ok(());
         }
+
+        templates::ensure_template_ignored(&worktree.path)?;
 
         if Confirm::with_theme(&self.theme)
             .with_prompt("Edit the cached template before launching the agent?")
