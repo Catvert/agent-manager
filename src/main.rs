@@ -3,6 +3,7 @@ mod git;
 mod templates;
 mod ui;
 
+use std::collections::HashMap;
 use std::path::Path;
 use std::process::{Command, Stdio};
 
@@ -139,8 +140,16 @@ impl App {
             }
         };
 
-        let local_template =
-            templates::copy_template_to_worktree(&template_path, &worktree_dir, &self.theme)?;
+        let mut automatic_variables = HashMap::new();
+        automatic_variables.insert("feature".to_string(), name.trim().to_string());
+        automatic_variables.insert("branch".to_string(), branch_name.clone());
+
+        let local_template = templates::copy_template_to_worktree(
+            &template_path,
+            &worktree_dir,
+            &self.theme,
+            &automatic_variables,
+        )?;
         println!(
             "{} Template copied to {}",
             style("[info]").blue(),

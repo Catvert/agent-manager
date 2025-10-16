@@ -61,11 +61,12 @@ pub fn copy_template_to_worktree(
     template: &Path,
     worktree: &Path,
     theme: &ColorfulTheme,
+    auto_variables: &HashMap<String, String>,
 ) -> Result<PathBuf> {
     let destination = worktree.join(TEMPLATE_FILENAME);
     let raw_template = fs::read_to_string(template)
         .with_context(|| format!("Unable to read template {}", template.display()))?;
-    let rendered_template = render_template(&raw_template, theme)?;
+    let rendered_template = render_template(&raw_template, theme, auto_variables)?;
     fs::write(&destination, rendered_template).with_context(|| {
         format!(
             "Failed to write rendered template to {}",
@@ -86,7 +87,11 @@ pub fn edit_template(editor: &str, template_path: &Path) -> Result<()> {
     Ok(())
 }
 
-fn render_template(content: &str, theme: &ColorfulTheme) -> Result<String> {
+fn render_template(
+    content: &str,
+    theme: &ColorfulTheme,
+    auto_variables: &HashMap<String, String>,
+) -> Result<String> {
     let pattern = Regex::new(r"\$\{([^}]+)\}")?;
     let mut prompts = Vec::new();
 
@@ -95,28 +100,34 @@ fn render_template(content: &str, theme: &ColorfulTheme) -> Result<String> {
         if name.is_empty() {
             continue;
         }
+        if auto_variables.contains_key(name) {
+            continue;
+        }
         if !prompts.iter().any(|existing| existing == name) {
             prompts.push(name.to_string());
         }
     }
 
-    if prompts.is_empty() {
+    if prompts.is_empty() && auto_variables.is_empty() {
         return Ok(content.to_string());
     }
 
-    println!(
-        "{} {}",
-        style("[info]").blue(),
-        style("Template variables detected, please provide their values.").dim()
-    );
+    let mut values: HashMap<String, String> = auto_variables.clone();
 
-    let mut values: HashMap<String, String> = HashMap::new();
-    for prompt in prompts {
-        let value: String = Input::with_theme(theme)
-            .with_prompt(format!("Value for {}", prompt))
-            .allow_empty(true)
-            .interact_text()?;
-        values.insert(prompt, value);
+    if !prompts.is_empty() {
+        println!(
+            "{} {}",
+            style("[info]").blue(),
+            style("Template variables detected, please provide their values.").dim()
+        );
+
+        for prompt in prompts {
+            let value: String = Input::with_theme(theme)
+                .with_prompt(format!("Value for {}", prompt))
+                .allow_empty(true)
+                .interact_text()?;
+            values.insert(prompt, value);
+        }
     }
 
     let rendered = pattern.replace_all(content, |caps: &regex::Captures| {
